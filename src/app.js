@@ -126,57 +126,51 @@ export default function App() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // --- Firebase Initialization and Authentication ---
-    useEffect(() => {
-        // These global variables are provided by the environment.
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    / --- Firebase Initialization and Authentication ---
+useEffect(() => {
+    // These variables are read from the Netlify environment
+    const appId = process.env.REACT_APP_ID || 'default-app-id';
+    const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG) : null;
 
-        if (!firebaseConfig) {
-            setError("Firebase configuration is missing.");
-            setLoading(false);
-            return;
-        }
+    if (!firebaseConfig) {
+        setError("Firebase configuration is missing. Make sure it's set in Netlify.");
+        setLoading(false);
+        return;
+    }
 
-        try {
-            const app = initializeApp(firebaseConfig);
-            const firestoreDb = getFirestore(app);
-            const authInstance = getAuth(app);
-            
-            setLogLevel('debug'); // For detailed console logs
-            
-            setDb(firestoreDb);
-            setAuth(authInstance);
+    try {
+        const app = initializeApp(firebaseConfig);
+        const firestoreDb = getFirestore(app);
+        const authInstance = getAuth(app);
 
-            // Listen for authentication state changes
-            const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
-                if (user) {
-                    setUserId(user.uid);
-                } else {
-                    // If no user, try to sign in.
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(authInstance, initialAuthToken);
-                        } else {
-                            await signInAnonymously(authInstance);
-                        }
-                    } catch (authError) {
-                        console.error("Authentication Error:", authError);
-                        setError("Failed to authenticate. Please refresh the page.");
-                    }
+        setLogLevel('debug');
+
+        setDb(firestoreDb);
+        setAuth(authInstance);
+
+        const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
+            if (user) {
+                setUserId(user.uid);
+            } else {
+                // For a deployed app, anonymous sign-in is a good default
+                try {
+                    await signInAnonymously(authInstance);
+                } catch (authError) {
+                    console.error("Authentication Error:", authError);
+                    setError("Failed to authenticate. Please refresh the page.");
                 }
-                setIsAuthReady(true);
-            });
-            
-            return () => unsubscribe(); // Cleanup listener on unmount
+            }
+            setIsAuthReady(true);
+        });
 
-        } catch (e) {
-            console.error("Firebase Initialization Error:", e);
-            setError("Could not connect to the database.");
-            setLoading(false);
-        }
-    }, []);
+        return () => unsubscribe();
+
+    } catch (e) {
+        console.error("Firebase Initialization Error:", e);
+        setError("Could not connect to the database.");
+        setLoading(false);
+    }
+}, []);
 
     // --- Firestore Data Fetching ---
     useEffect(() => {
